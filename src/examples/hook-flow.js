@@ -60,6 +60,8 @@ function Child() {
   return element
 }
 
+//##########################################//
+
 function App() {
   console.log('%cApp: render start', 'color: MediumSpringGreen')
 
