@@ -1,29 +1,79 @@
 import * as React from 'react'
 
-function Board() {
-  const [squares, setSquares] = React.useState(Array(9).fill(null))
+function App() {
+  return (
+    <React.StrictMode>
+      <Game />
+    </React.StrictMode>
+  )
+}
 
-  const nextValue = calculateNextValue(squares)
-  const winner = calculateWinner(squares)
-  const status = calculateStatus(winner, squares, nextValue)
+// ===================== Game =================== //
 
-  function restart() {
-    setSquares(Array(9).fill(null))
-  }
+function Game() {
+  const [history, setHistory] = useLocalStorageState('tic-tac-toe:history', [
+    Array(9).fill(null),
+  ])
+  const [currentStep, setCurrentStep] = useLocalStorageState(
+    'tic-tac-toe:step',
+    0,
+  )
+
+  const currentSquares = history[currentStep]
+  const nextValue = calculateNextValue(currentSquares)
+  const winner = calculateWinner(currentSquares)
+  const status = calculateStatus(winner, currentSquares, nextValue)
+  const moves = history.map((_, index) => {
+    const description = index ? `Go to move #${index}` : 'Go to game start'
+    const isCurrentStep = index === currentStep
+    return (
+      <li key={index}>
+        <button disabled={isCurrentStep} onClick={() => setCurrentStep(index)}>
+          {description} {isCurrentStep && <span>🟢</span>}
+        </button>
+      </li>
+    )
+  })
 
   function selectSquare(square) {
-    if (winner || squares[square]) {
+    if (winner || currentSquares[square]) {
       return
     }
+    const newHistory = history.slice(0, currentStep + 1)
+    const squaresCopy = [...currentSquares]
 
-    const squaresCopy = [...squares]
     squaresCopy[square] = nextValue
-    setSquares(squaresCopy)
+    setHistory([...newHistory, squaresCopy])
+    setCurrentStep(newHistory.length)
   }
 
+  function restart() {
+    setHistory([Array(9).fill(null)])
+    setCurrentStep(0)
+  }
+
+  return (
+    <div className="game">
+      <div className="game-board">
+        <Board onClick={selectSquare} squares={currentSquares} />
+        <button className="restart" onClick={restart}>
+          restart
+        </button>
+      </div>
+      <div className="game-info">
+        <div>{status}</div>
+        <ol>{moves}</ol>
+      </div>
+    </div>
+  )
+}
+
+// ==================== Board ==================== //
+
+function Board({onClick, squares}) {
   function renderSquare(i) {
     return (
-      <button className="square" onClick={() => selectSquare(i)}>
+      <button className="square" onClick={() => onClick(i)}>
         {squares[i]}
       </button>
     )
@@ -31,7 +81,6 @@ function Board() {
 
   return (
     <div>
-      <div className="status"> {status}</div>
       <div className="board-row">
         {renderSquare(0)}
         {renderSquare(1)}
@@ -47,23 +96,14 @@ function Board() {
         {renderSquare(7)}
         {renderSquare(8)}
       </div>
-      <button className="restart" onClick={restart}>
-        restart
-      </button>
     </div>
   )
 }
 
+// ===================== calculation logic =================== //
+
 function calculateNextValue(squares) {
   return squares.filter(Boolean).length % 2 === 0 ? 'X' : 'O'
-}
-
-function calculateStatus(winner, squares, nextValue) {
-  return winner
-    ? `Winner: ${winner}`
-    : squares.every(Boolean)
-    ? `Scratch: Cat's game`
-    : `Next player: ${nextValue}`
 }
 
 function calculateWinner(squares) {
@@ -86,22 +126,41 @@ function calculateWinner(squares) {
   return null
 }
 
-function Game() {
-  return (
-    <div className="game">
-      <div className="game-board">
-        <Board />
-      </div>
-    </div>
-  )
+function calculateStatus(winner, squares, nextValue) {
+  return winner
+    ? `Winner: ${winner}`
+    : squares.every(Boolean)
+    ? `Draw!`
+    : `Next player: ${nextValue}`
 }
 
-function App() {
-  return (
-    <React.StrictMode>
-      <Game />
-    </React.StrictMode>
-  )
+// ================== custom hook to get/set values in localStorage ===================== //
+
+function useLocalStorageState(
+  key,
+  defaultValue = '',
+  {serialize = JSON.stringify, deserialize = JSON.parse} = {},
+) {
+  const [state, setState] = React.useState(() => {
+    const valueInLocalStorage = window.localStorage.getItem(key)
+    if (valueInLocalStorage) {
+      return deserialize(valueInLocalStorage)
+    }
+    return typeof defaultValue === 'function' ? defaultValue() : defaultValue
+  })
+
+  const prevKeyRef = React.useRef(key)
+
+  React.useEffect(() => {
+    const prevKey = prevKeyRef.current
+    if (prevKey !== key) {
+      window.localStorage.removeItem(prevKey)
+    }
+    prevKeyRef.current = key
+    window.localStorage.setItem(key, serialize(state))
+  }, [key, state, serialize])
+
+  return [state, setState]
 }
 
 export default App
